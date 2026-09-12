@@ -1,7 +1,9 @@
 package com.roleta.app.data.repository
 
+import androidx.room.withTransaction
 import com.roleta.app.data.datastore.AppPreferences
 import com.roleta.app.data.datastore.SortOrder
+import com.roleta.app.data.db.RoletaDatabase
 import com.roleta.app.data.db.dao.ItemDao
 import com.roleta.app.data.db.dao.ListDao
 import com.roleta.app.data.db.dao.ListWithCount
@@ -28,11 +30,16 @@ sealed class RestoreResult {
 
 @Singleton
 class RoletaRepository @Inject constructor(
+    private val database: RoletaDatabase,
     private val listDao: ListDao,
     private val itemDao: ItemDao,
     private val pickHistoryDao: PickHistoryDao,
     private val appPreferences: AppPreferences
 ) {
+
+    companion object {
+        private const val SAMPLE_LIST_ID = "sample-list-seed"
+    }
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
@@ -195,21 +202,23 @@ class RoletaRepository @Inject constructor(
             .distinctBy { it.lowercase() }
         if (valid.isEmpty()) return "No valid items found in the file."
 
-        // Delete existing active items
-        val existing = itemDao.getActiveItemsOnce(listId)
-        existing.forEach { itemDao.deleteById(it.id) }
+        database.withTransaction {
+            // Delete existing active items
+            val existing = itemDao.getActiveItemsOnce(listId)
+            existing.forEach { itemDao.deleteById(it.id) }
 
-        // Insert new items
-        val ts = now()
-        valid.forEachIndexed { idx, text ->
-            itemDao.insert(
-                ItemEntity(
-                    id = UUID.randomUUID().toString(),
-                    listId = listId,
-                    text = text,
-                    createdAt = ts + idx
+            // Insert new items
+            val ts = now()
+            valid.forEachIndexed { idx, text ->
+                itemDao.insert(
+                    ItemEntity(
+                        id = UUID.randomUUID().toString(),
+                        listId = listId,
+                        text = text,
+                        createdAt = ts + idx
+                    )
                 )
-            )
+            }
         }
         return null
     }
@@ -217,18 +226,23 @@ class RoletaRepository @Inject constructor(
     // ── First-launch seeding ──────────────────────────────────────────────────
 
     suspend fun seedSampleList() {
-        val listId = UUID.randomUUID().toString()
-        listDao.insert(ListEntity(id = listId, name = "Sample List", createdAt = now()))
-        val items = listOf("Pizza", "Tacos", "Ramen", "Sushi", "Burger", "Pasta")
-        items.forEachIndexed { idx, text ->
-            itemDao.insert(
-                ItemEntity(
-                    id = UUID.randomUUID().toString(),
-                    listId = listId,
-                    text = text,
-                    createdAt = now() + idx
+        if (listDao.getById(SAMPLE_LIST_ID) != null) {
+            setHasLaunched()
+            return
+        }
+        database.withTransaction {
+            listDao.insert(ListEntity(id = SAMPLE_LIST_ID, name = "Sample List", createdAt = now()))
+            val items = listOf("Pizza", "Tacos", "Ramen", "Sushi", "Burger", "Pasta")
+            items.forEachIndexed { idx, text ->
+                itemDao.insert(
+                    ItemEntity(
+                        id = UUID.randomUUID().toString(),
+                        listId = SAMPLE_LIST_ID,
+                        text = text,
+                        createdAt = now() + idx
+                    )
                 )
-            )
+            }
         }
         setHasLaunched()
     }

@@ -20,6 +20,7 @@ sealed class PickUiState {
     data class Spinning(
         val items: List<String>,
         val targetIndex: Int,
+        val spinId: Long,
         val listName: String,
         val quip: String
     ) : PickUiState()
@@ -53,6 +54,7 @@ class PickViewModel @Inject constructor(
     private lateinit var listId: String
     private lateinit var listName: String
     private var selectedItem: ItemEntity? = null
+    private var spinCounter = 0L
 
     private val _uiState = MutableStateFlow<PickUiState>(PickUiState.Loading)
     val uiState: StateFlow<PickUiState> = _uiState.asStateFlow()
@@ -90,6 +92,7 @@ class PickViewModel @Inject constructor(
         _uiState.value = PickUiState.Spinning(
             items = items.map { it.text },
             targetIndex = items.indexOf(pick),
+            spinId = spinCounter++,
             listName = listName,
             quip = QUIPS.random()
         )

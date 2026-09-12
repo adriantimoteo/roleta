@@ -32,6 +32,7 @@ private const val FADE_FRACTION = 0.28f
 fun SlotMachineAnimation(
     items: List<String>,
     targetIndex: Int,
+    spinId: Long,
     onSettled: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -51,7 +52,7 @@ fun SlotMachineAnimation(
 
     val offset = remember { Animatable(startOffset) }
 
-    LaunchedEffect(targetIndex) {
+    LaunchedEffect(spinId) {
         offset.snapTo(startOffset)
         offset.animateTo(
             targetValue = endOffset,

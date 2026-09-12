@@ -25,11 +25,13 @@ class AppPreferences @Inject constructor(
     val hasLaunched: Flow<Boolean> = dataStore.data.map { it[KEY_HAS_LAUNCHED] ?: false }
 
     val listSortOrder: Flow<SortOrder> = dataStore.data.map {
-        SortOrder.valueOf(it[KEY_LIST_SORT] ?: SortOrder.ALPHA.name)
+        val raw = it[KEY_LIST_SORT]
+        SortOrder.entries.find { order -> order.name == raw } ?: SortOrder.ALPHA
     }
 
     val itemSortOrder: Flow<SortOrder> = dataStore.data.map {
-        SortOrder.valueOf(it[KEY_ITEM_SORT] ?: SortOrder.ALPHA.name)
+        val raw = it[KEY_ITEM_SORT]
+        SortOrder.entries.find { order -> order.name == raw } ?: SortOrder.ALPHA
     }
 
     suspend fun setHasLaunched() {

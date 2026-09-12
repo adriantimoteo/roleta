@@ -51,6 +51,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.roleta.app.data.datastore.SortOrder
 import com.roleta.app.data.db.dao.ListWithCount
+import com.roleta.app.ui.component.DeleteListDialog
 import com.roleta.app.ui.component.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -225,29 +226,6 @@ fun TextInputDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }) { Text(confirmText) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-private fun DeleteListDialog(
-    listName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Delete \"$listName\"?") },
-        text = {
-            Text("This will permanently delete all items and pick history for this list.")
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
-            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

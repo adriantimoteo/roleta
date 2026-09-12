@@ -31,7 +31,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.roleta.app.data.datastore.SortOrder
 import com.roleta.app.data.db.entity.ItemEntity
+import com.roleta.app.ui.component.DeleteListDialog
 import com.roleta.app.ui.component.EmptyState
 import com.roleta.app.ui.screen.home.TextInputDialog
 import kotlinx.coroutines.launch
@@ -68,7 +68,8 @@ fun ListScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var overflowExpanded by remember { mutableStateOf(false) }
-    var currentListName by remember { mutableStateOf(listName) }
+    // Falls back to the nav-provided name for the single frame before ViewModel.init populates state.
+    val currentListName = state.listName.ifBlank { listName }
 
     LaunchedEffect(listId) {
         viewModel.init(listId, listName)
@@ -81,11 +82,6 @@ fun ListScreen(
                 is ListEvent.NavigateBack -> onNavigateBack()
             }
         }
-    }
-
-    // Keep local title in sync with renames
-    LaunchedEffect(state) {
-        currentListName = viewModel.getCurrentListName()
     }
 
     // Export launcher
@@ -255,18 +251,10 @@ fun ListScreen(
     }
 
     if (state.showDeleteListDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissDeleteListDialog() },
-            title = { Text("Delete \"$currentListName\"?") },
-            text = { Text("This will permanently delete all items and pick history for this list.") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmDeleteList() }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissDeleteListDialog() }) { Text("Cancel") }
-            }
+        DeleteListDialog(
+            listName = currentListName,
+            onConfirm = { viewModel.confirmDeleteList() },
+            onDismiss = { viewModel.dismissDeleteListDialog() }
         )
     }
 

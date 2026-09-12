@@ -119,6 +119,7 @@ private fun SpinningContent(
         SlotMachineAnimation(
             items = state.items,
             targetIndex = state.targetIndex,
+            spinId = state.spinId,
             onSettled = onSettled
         )
         Text(

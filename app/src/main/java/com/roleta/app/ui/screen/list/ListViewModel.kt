@@ -22,6 +22,7 @@ sealed class ListEvent {
 
 data class ListUiState(
     val items: List<ItemEntity> = emptyList(),
+    val listName: String = "",
     val sortOrder: SortOrder = SortOrder.ALPHA,
     val showAddDialog: Boolean = false,
     val addDialogError: String? = null,
@@ -41,7 +42,6 @@ class ListViewModel @Inject constructor(
 ) : ViewModel() {
 
     private lateinit var listId: String
-    private lateinit var listName: String
 
     private val _uiState = MutableStateFlow(ListUiState())
     val uiState: StateFlow<ListUiState> = _uiState.asStateFlow()
@@ -52,7 +52,7 @@ class ListViewModel @Inject constructor(
     fun init(listId: String, listName: String) {
         if (this::listId.isInitialized) return
         this.listId = listId
-        this.listName = listName
+        _uiState.value = _uiState.value.copy(listName = listName)
         viewModelScope.launch {
             repository.getActiveItems(listId).collect { items ->
                 _uiState.value = _uiState.value.copy(items = items)
@@ -140,8 +140,11 @@ class ListViewModel @Inject constructor(
         viewModelScope.launch {
             val error = repository.renameList(listId, newName)
             if (error == null) {
-                this@ListViewModel.listName = newName.trim()
-                _uiState.value = _uiState.value.copy(showRenameListDialog = false, renameListError = null)
+                _uiState.value = _uiState.value.copy(
+                    listName = newName.trim(),
+                    showRenameListDialog = false,
+                    renameListError = null
+                )
             } else {
                 _uiState.value = _uiState.value.copy(renameListError = error)
             }
@@ -222,5 +225,4 @@ class ListViewModel @Inject constructor(
         }
     }
 
-    fun getCurrentListName(): String = listName
 }
