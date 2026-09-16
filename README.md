@@ -63,6 +63,16 @@ app/src/main/java/com/roleta/app/
 
 > Development so far has been done against a physical Android device connected via Android Studio — no emulator has been used/verified on the primary dev machine.
 
+## Screenshots
+
+| Home | List | Pick result |
+|---|---|---|
+| ![Home screen](docs/screenshots/home.png) | ![List screen](docs/screenshots/list.png) | ![Pick result](docs/screenshots/pick-result.png) |
+
+| History | Spin animation |
+|---|---|
+| ![History screen](docs/screenshots/history.png) | <video src="docs/screenshots/spin.mp4" controls width="250"></video> |
+
 ## Testing
 
 - `app/src/test` — unit tests (ViewModels, JUnit + MockK)
