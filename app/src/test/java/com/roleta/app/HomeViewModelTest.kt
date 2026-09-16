@@ -2,6 +2,7 @@ package com.roleta.app
 
 import com.roleta.app.data.datastore.SortOrder
 import com.roleta.app.data.db.dao.ListWithCount
+import com.roleta.app.data.repository.CreateListResult
 import com.roleta.app.data.repository.RoletaRepository
 import com.roleta.app.ui.screen.home.HomeViewModel
 import io.mockk.coEvery
@@ -54,7 +55,7 @@ class HomeViewModelTest {
 
     @Test
     fun createList_success_dismissesDialog() = runTest {
-        coEvery { repository.createList(any()) } returns null
+        coEvery { repository.createList(any()) } returns CreateListResult.Success("id2")
         viewModel.openCreateDialog()
         viewModel.createList("Restaurants")
         testDispatcher.scheduler.advanceUntilIdle()
@@ -64,7 +65,8 @@ class HomeViewModelTest {
 
     @Test
     fun createList_duplicate_showsError() = runTest {
-        coEvery { repository.createList(any()) } returns "A list named \"Movies\" already exists."
+        coEvery { repository.createList(any()) } returns
+            CreateListResult.Error("A list named \"Movies\" already exists.")
         viewModel.openCreateDialog()
         viewModel.createList("Movies")
         testDispatcher.scheduler.advanceUntilIdle()
