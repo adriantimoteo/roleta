@@ -69,9 +69,11 @@ app/src/main/java/com/roleta/app/
 |---|---|---|
 | ![Home screen](docs/screenshots/home.png) | ![List screen](docs/screenshots/list.png) | ![Pick result](docs/screenshots/pick-result.png) |
 
-| History | Spin animation |
-|---|---|
-| ![History screen](docs/screenshots/history.png) | <video src="docs/screenshots/spin.mp4" controls width="250"></video> |
+| History |
+|---|
+| ![History screen](docs/screenshots/history.png) |
+
+[▶ Watch the spin animation](docs/screenshots/spin.mp4)
 
 ## Testing
 
