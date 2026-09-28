@@ -11,6 +11,8 @@ The name "roleta" is Filipino for roulette.
 3. Tap Pick — a slot-machine animation cycles through items and lands on one
 4. Accept the pick (it moves to history, out of active rotation) or try again (re-spin from all active items)
 
+Lists can also be imported in bulk from Home: **+ → Import from text**, then paste a list title on the first line and one item per line after it. If the title matches an existing list, the items are added to it. Repeated or already-present items are skipped and reported once the import finishes.
+
 ## Stack
 
 - Kotlin, Jetpack Compose (Material 3), single activity + Compose Navigation
@@ -28,17 +30,17 @@ app/src/main/java/com/roleta/app/
 ├── data/
 │   ├── datastore/     # app-level preferences (sort order, etc.)
 │   ├── db/             # Room database, DAOs, entities
-│   └── repository/     # RoletaRepository — single source of truth over DB
+│   └── repository/     # RoletaRepository (single source of truth over DB), BulkImportParser
 ├── di/                  # Hilt modules
 └── ui/
-    ├── component/       # SlotMachineAnimation, EmptyState, shared composables
+    ├── component/       # SlotMachineAnimation, EmptyState, SectionHeader, dialogs, shared composables
     ├── navigation/       # NavGraph, Routes
     ├── screen/
-    │   ├── home/         # list of lists
+    │   ├── home/         # list of lists, bulk import from text
     │   ├── list/          # items within a list, spin entry point
     │   ├── pick/           # spin animation + result
     │   └── history/        # past picks
-    └── theme/             # Color, Type, Theme (DM Sans font, warm amber palette)
+    └── theme/             # Color, Type, Shape, Theme (DM Sans font, fixed warm amber palette; no dynamic color)
 ```
 
 ## Build & run
@@ -65,6 +67,8 @@ app/src/main/java/com/roleta/app/
 
 ## Screenshots
 
+> These predate the UI refresh (brand palette, grouped lists, redesigned result screen) and are due to be retaken.
+
 | Home | List | Pick result |
 |---|---|---|
 | ![Home screen](docs/screenshots/home.png) | ![List screen](docs/screenshots/list.png) | ![Pick result](docs/screenshots/pick-result.png) |
@@ -77,8 +81,8 @@ app/src/main/java/com/roleta/app/
 
 ## Testing
 
-- `app/src/test` — unit tests (ViewModels, JUnit + MockK)
-- `app/src/androidTest` — instrumented DAO tests (Room, run on-device)
+- `app/src/test` — JVM unit tests (JUnit + MockK): `HomeViewModel` (incl. bulk import), `PickViewModel` (spin / try again / accept), `BulkImportParser`
+- `app/src/androidTest` — instrumented tests, run on-device against an in-memory Room database: DAO tests, plus `RoletaRepositoryTest` (bulk import, accept pick, restore)
 
 ## Status
 
