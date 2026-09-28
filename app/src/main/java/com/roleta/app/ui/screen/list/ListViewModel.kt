@@ -16,12 +16,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed class ListEvent {
-    data class ShowToast(val message: String) : ListEvent()
+    data class ShowMessage(val message: String) : ListEvent()
     data object NavigateBack : ListEvent()
 }
 
 data class ListUiState(
     val items: List<ItemEntity> = emptyList(),
+    /** True until the first item query returns, so the empty state doesn't flash on open. */
+    val isLoading: Boolean = true,
     val listName: String = "",
     val sortOrder: SortOrder = SortOrder.ALPHA,
     val showAddDialog: Boolean = false,
@@ -55,7 +57,7 @@ class ListViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(listName = listName)
         viewModelScope.launch {
             repository.getActiveItems(listId).collect { items ->
-                _uiState.value = _uiState.value.copy(items = items)
+                _uiState.value = _uiState.value.copy(items = items, isLoading = false)
             }
         }
         viewModelScope.launch {
@@ -122,7 +124,7 @@ class ListViewModel @Inject constructor(
     fun pickItem(item: ItemEntity) {
         viewModelScope.launch {
             repository.acceptPick(item.id, listId)
-            _events.emit(ListEvent.ShowToast("\"${item.text}\" picked!"))
+            _events.emit(ListEvent.ShowMessage("“${item.text}” picked and moved to history"))
         }
     }
 
@@ -221,7 +223,7 @@ class ListViewModel @Inject constructor(
     private fun performImport(lines: List<String>) {
         viewModelScope.launch {
             val error = repository.importItems(listId, lines)
-            if (error != null) _events.emit(ListEvent.ShowToast(error))
+            if (error != null) _events.emit(ListEvent.ShowMessage(error))
         }
     }
 

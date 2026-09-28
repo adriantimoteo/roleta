@@ -4,22 +4,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.roleta.app.data.datastore.SortOrder
 import com.roleta.app.data.db.dao.ListWithCount
+import com.roleta.app.data.repository.BulkImportParser
+import com.roleta.app.data.repository.BulkImportResult
 import com.roleta.app.data.repository.CreateListResult
 import com.roleta.app.data.repository.RoletaRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
     val lists: List<ListWithCount> = emptyList(),
+    /** True until the first list query returns, so the empty state doesn't flash on launch. */
+    val isLoading: Boolean = true,
     val sortOrder: SortOrder = SortOrder.ALPHA,
     val showCreateDialog: Boolean = false,
     val createDialogError: String? = null,
@@ -27,8 +29,17 @@ data class HomeUiState(
     val renameTarget: ListWithCount? = null,
     val renameDialogError: String? = null,
     val showDeleteDialog: Boolean = false,
-    val deleteTarget: ListWithCount? = null
+    val deleteTarget: ListWithCount? = null,
+    val showImportDialog: Boolean = false,
+    val isImporting: Boolean = false,
+    /** Set when an import skipped lines; shown as a summary dialog. */
+    val importSummary: BulkImportResult? = null
 )
+
+sealed class HomeEvent {
+    /** An import finished with nothing skipped. */
+    data class Imported(val result: BulkImportResult) : HomeEvent()
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -41,10 +52,13 @@ class HomeViewModel @Inject constructor(
     private val _navigateToList = MutableSharedFlow<Pair<String, String>>()
     val navigateToList: SharedFlow<Pair<String, String>> = _navigateToList.asSharedFlow()
 
+    private val _events = MutableSharedFlow<HomeEvent>()
+    val events: SharedFlow<HomeEvent> = _events.asSharedFlow()
+
     init {
         viewModelScope.launch {
             repository.getLists().collect { lists ->
-                _uiState.value = _uiState.value.copy(lists = lists)
+                _uiState.value = _uiState.value.copy(lists = lists, isLoading = false)
             }
         }
         viewModelScope.launch {
@@ -122,5 +136,41 @@ class HomeViewModel @Inject constructor(
             repository.deleteList(target.id)
             _uiState.value = _uiState.value.copy(showDeleteDialog = false, deleteTarget = null)
         }
+    }
+
+    // ── Bulk import ───────────────────────────────────────────────────────────
+
+    fun openImportDialog() {
+        _uiState.value = _uiState.value.copy(showImportDialog = true)
+    }
+
+    fun dismissImportDialog() {
+        _uiState.value = _uiState.value.copy(showImportDialog = false)
+    }
+
+    fun importFromText(text: String) {
+        if (_uiState.value.isImporting) return
+        val parsed = BulkImportParser.parse(text) ?: return
+        if (parsed.items.isEmpty()) return
+        _uiState.value = _uiState.value.copy(isImporting = true)
+        viewModelScope.launch {
+            val result = repository.bulkImport(parsed)
+            _uiState.value = _uiState.value.copy(
+                showImportDialog = false,
+                isImporting = false,
+                importSummary = result.takeIf { it.skipped.isNotEmpty() }
+            )
+            if (result.skipped.isEmpty()) _events.emit(HomeEvent.Imported(result))
+        }
+    }
+
+    fun dismissImportSummary() {
+        _uiState.value = _uiState.value.copy(importSummary = null)
+    }
+
+    fun openImportedList() {
+        val summary = _uiState.value.importSummary ?: return
+        _uiState.value = _uiState.value.copy(importSummary = null)
+        viewModelScope.launch { _navigateToList.emit(summary.listId to summary.listName) }
     }
 }

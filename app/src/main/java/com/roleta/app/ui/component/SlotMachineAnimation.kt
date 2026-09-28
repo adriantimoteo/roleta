@@ -10,17 +10,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -39,12 +44,16 @@ fun SlotMachineAnimation(
     if (items.isEmpty()) return
 
     val density = LocalDensity.current
-    val itemHeightDp = 64.dp
-    val itemHeightPx = with(density) { itemHeightDp.toPx() }
+    val haptics = LocalHapticFeedback.current
+    val itemHeightPx = with(density) { 64.dp.toPx() }
+    val highlightInsetPx = with(density) { 24.dp.toPx() }
+    val highlightRadiusPx = with(density) { 20.dp.toPx() }
+    val textInsetPx = with(density) { 40.dp.toPx() }
     val textMeasurer = rememberTextMeasurer()
-    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-    val textColor = MaterialTheme.colorScheme.onSurface
-    val dimmedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val typography = MaterialTheme.typography
+    val highlightColor = MaterialTheme.colorScheme.primaryContainer
+    val highlightTextColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val dimmedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     val surfaceColor = MaterialTheme.colorScheme.surface
 
     val startOffset = (FULL_ROTATIONS * items.size).toFloat()
@@ -61,6 +70,7 @@ fun SlotMachineAnimation(
                 easing = FastOutSlowInEasing
             )
         )
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         onSettled()
     }
 
@@ -68,11 +78,12 @@ fun SlotMachineAnimation(
         val currentOffset = offset.value
         val centerY = size.height / 2f
 
-        // Center highlight bar
-        drawRect(
+        // Center highlight
+        drawRoundRect(
             color = highlightColor,
-            topLeft = Offset(0f, centerY - itemHeightPx / 2f),
-            size = Size(size.width, itemHeightPx)
+            topLeft = Offset(highlightInsetPx, centerY - itemHeightPx / 2f),
+            size = Size(size.width - highlightInsetPx * 2, itemHeightPx),
+            cornerRadius = CornerRadius(highlightRadiusPx)
         )
 
         // Items
@@ -90,9 +101,13 @@ fun SlotMachineAnimation(
             drawItemText(
                 text = items[itemIdx],
                 yCenter = yCenter,
+                horizontalInset = textInsetPx,
                 textMeasurer = textMeasurer,
-                color = if (isCenter) textColor else dimmedTextColor,
-                bold = isCenter
+                style = if (isCenter) {
+                    typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold, color = highlightTextColor)
+                } else {
+                    typography.titleMedium.copy(fontSize = 18.sp, color = dimmedTextColor)
+                }
             )
         }
 
@@ -123,16 +138,19 @@ fun SlotMachineAnimation(
 private fun DrawScope.drawItemText(
     text: String,
     yCenter: Float,
+    horizontalInset: Float,
     textMeasurer: TextMeasurer,
-    color: Color,
-    bold: Boolean
+    style: TextStyle
 ) {
-    val style = TextStyle(
-        fontSize = if (bold) 22.sp else 18.sp,
-        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
-        color = color
+    // Long items are cut off with an ellipsis instead of running past the highlight.
+    val maxWidth = (size.width - horizontalInset * 2).toInt().coerceAtLeast(0)
+    val measured = textMeasurer.measure(
+        text = text,
+        style = style,
+        overflow = TextOverflow.Ellipsis,
+        maxLines = 1,
+        constraints = Constraints(maxWidth = maxWidth)
     )
-    val measured = textMeasurer.measure(text, style)
     drawText(
         textLayoutResult = measured,
         topLeft = Offset(

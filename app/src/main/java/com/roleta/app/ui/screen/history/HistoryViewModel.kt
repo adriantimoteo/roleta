@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed class HistoryEvent {
-    data class ShowToast(val message: String) : HistoryEvent()
+    data class ShowMessage(val message: String) : HistoryEvent()
 }
 
 data class HistoryUiState(
@@ -51,9 +51,9 @@ class HistoryViewModel @Inject constructor(
         viewModelScope.launch {
             when (repository.restoreItem(entry.id)) {
                 RestoreResult.Success ->
-                    _events.emit(HistoryEvent.ShowToast("Restored to active list."))
+                    _events.emit(HistoryEvent.ShowMessage("“${entry.itemTextSnapshot}” is back in the list"))
                 RestoreResult.AlreadyActive ->
-                    _events.emit(HistoryEvent.ShowToast("Already in your active list — history entry removed."))
+                    _events.emit(HistoryEvent.ShowMessage("Already in your active list — history entry removed"))
             }
         }
     }

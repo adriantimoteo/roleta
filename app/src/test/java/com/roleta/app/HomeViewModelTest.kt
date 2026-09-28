@@ -2,8 +2,13 @@ package com.roleta.app
 
 import com.roleta.app.data.datastore.SortOrder
 import com.roleta.app.data.db.dao.ListWithCount
+import com.roleta.app.data.repository.BulkImportResult
 import com.roleta.app.data.repository.CreateListResult
+import com.roleta.app.data.repository.ParsedBulkImport
 import com.roleta.app.data.repository.RoletaRepository
+import com.roleta.app.data.repository.SkipReason
+import com.roleta.app.data.repository.SkippedItem
+import com.roleta.app.ui.screen.home.HomeEvent
 import com.roleta.app.ui.screen.home.HomeViewModel
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -12,7 +17,11 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -96,6 +105,56 @@ class HomeViewModelTest {
     fun noSeedingWhenAlreadyLaunched() = runTest {
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify(exactly = 0) { repository.seedSampleList() }
+    }
+
+    @Test
+    fun loadingClearsAfterFirstListEmission() = runTest {
+        assertTrue(viewModel.uiState.value.isLoading)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun importFromText_nothingSkipped_emitsImportedAndClosesDialog() = runTest(testDispatcher) {
+        val result = BulkImportResult("id9", "Trips", createdList = true, addedCount = 2, skipped = emptyList())
+        coEvery { repository.bulkImport(any()) } returns result
+        val events = mutableListOf<HomeEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.events.toList(events) }
+
+        viewModel.openImportDialog()
+        viewModel.importFromText("Trips\nBaguio\nLa Union")
+        advanceUntilIdle()
+
+        coVerify { repository.bulkImport(ParsedBulkImport("Trips", listOf("Baguio", "La Union"), emptyList())) }
+        assertEquals(listOf(HomeEvent.Imported(result)), events)
+        assertFalse(viewModel.uiState.value.showImportDialog)
+        assertNull(viewModel.uiState.value.importSummary)
+    }
+
+    @Test
+    fun importFromText_withSkipped_showsSummary() = runTest(testDispatcher) {
+        val result = BulkImportResult(
+            "id1", "Movies", createdList = false, addedCount = 1,
+            skipped = listOf(SkippedItem("Dune", SkipReason.ALREADY_IN_LIST))
+        )
+        coEvery { repository.bulkImport(any()) } returns result
+
+        viewModel.openImportDialog()
+        viewModel.importFromText("Movies\nDune\nArrival")
+        advanceUntilIdle()
+
+        assertEquals(result, viewModel.uiState.value.importSummary)
+        assertFalse(viewModel.uiState.value.showImportDialog)
+    }
+
+    @Test
+    fun importFromText_titleOnly_doesNothing() = runTest(testDispatcher) {
+        viewModel.openImportDialog()
+        viewModel.importFromText("Only a title")
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.bulkImport(any()) }
+        assertTrue(viewModel.uiState.value.showImportDialog)
     }
 
     @Test

@@ -1,44 +1,51 @@
 package com.roleta.app.ui.screen.history
 
-import android.widget.Toast
+import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.roleta.app.data.db.entity.PickHistoryEntity
 import com.roleta.app.ui.component.EmptyState
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private val DATE_FORMAT = SimpleDateFormat("MMM d", Locale.getDefault())
+import com.roleta.app.ui.component.SectionHeader
+import com.roleta.app.ui.component.groupedItemShape
+import com.roleta.app.ui.component.pluralize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +56,8 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     LaunchedEffect(listId) {
         viewModel.init(listId)
@@ -58,44 +66,63 @@ fun HistoryScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is HistoryEvent.ShowToast ->
-                    Toast.makeText(context, event.message, Toast.LENGTH_SHORT).show()
+                is HistoryEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
             }
         }
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = { Text("History · $listName") },
+                title = {
+                    Column {
+                        Text("History")
+                        Text(
+                            text = listName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        if (state.entries.isEmpty() && !state.isLoading) {
-            EmptyState(
-                icon = Icons.Default.History,
+        when {
+            state.isLoading -> Unit
+            state.entries.isEmpty() -> EmptyState(
+                icon = Icons.Outlined.History,
                 title = "No picks yet",
-                subtitle = "Items you accept will appear here.",
+                subtitle = "Items you accept show up here. Restore one to put it back in the draw.",
                 modifier = Modifier.padding(padding)
             )
-        } else {
-            LazyColumn(
+            else -> LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = PaddingValues(
-                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(state.entries, key = { it.id }) { entry ->
+                item(key = "header") {
+                    SectionHeader(
+                        text = "${pluralize(state.entries.size, "item")} picked",
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                }
+                itemsIndexed(state.entries, key = { _, entry -> entry.id }) { index, entry ->
                     HistoryEntryRow(
                         entry = entry,
+                        index = index,
+                        count = state.entries.size,
                         onRestore = { viewModel.restore(entry) }
                     )
                 }
@@ -107,16 +134,23 @@ fun HistoryScreen(
 @Composable
 private fun HistoryEntryRow(
     entry: PickHistoryEntity,
+    index: Int,
+    count: Int,
     onRestore: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    val lastPicked = DateUtils.getRelativeTimeSpanString(
+        entry.lastPickedAt,
+        System.currentTimeMillis(),
+        DateUtils.DAY_IN_MILLIS
+    )
+
+    Surface(
+        shape = groupedItemShape(index, count),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -125,12 +159,22 @@ private fun HistoryEntryRow(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "${entry.pickCount}x · ${DATE_FORMAT.format(Date(entry.lastPickedAt))}",
+                    text = "Picked ${pluralize(entry.pickCount, "time")} · $lastPicked",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            OutlinedButton(onClick = onRestore) {
+            Spacer(modifier = Modifier.width(12.dp))
+            FilledTonalButton(
+                onClick = onRestore,
+                contentPadding = ButtonDefaults.ButtonWithIconContentPadding
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Undo,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                 Text("Restore")
             }
         }

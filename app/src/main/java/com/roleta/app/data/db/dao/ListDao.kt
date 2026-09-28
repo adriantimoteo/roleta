@@ -37,6 +37,9 @@ interface ListDao {
     @Query("SELECT * FROM lists WHERE id = :id")
     suspend fun getById(id: String): ListEntity?
 
+    @Query("SELECT * FROM lists WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getByName(name: String): ListEntity?
+
     @Query("SELECT COUNT(*) FROM lists WHERE LOWER(name) = LOWER(:name) AND id != :excludeId")
     suspend fun countByName(name: String, excludeId: String): Int
 

@@ -28,6 +28,18 @@ sealed class RestoreResult {
     data object AlreadyActive : RestoreResult()
 }
 
+enum class SkipReason { DUPLICATE_IN_TEXT, ALREADY_IN_LIST }
+
+data class SkippedItem(val text: String, val reason: SkipReason)
+
+data class BulkImportResult(
+    val listId: String,
+    val listName: String,
+    val createdList: Boolean,
+    val addedCount: Int,
+    val skipped: List<SkippedItem>
+)
+
 @Singleton
 class RoletaRepository @Inject constructor(
     private val database: RoletaDatabase,
@@ -124,7 +136,7 @@ class RoletaRepository @Inject constructor(
         itemDao.incrementSkipCount(itemId)
     }
 
-    suspend fun acceptPick(itemId: String, listId: String) {
+    suspend fun acceptPick(itemId: String, listId: String) = database.withTransaction {
         itemDao.updateStatus(itemId, ItemStatus.PICKED)
         itemDao.resetSkipCount(itemId)
         val existing = pickHistoryDao.getByItemId(itemId)
@@ -155,14 +167,14 @@ class RoletaRepository @Inject constructor(
     fun getHistoryCount(listId: String): Flow<Int> =
         pickHistoryDao.getHistoryCountForList(listId)
 
-    suspend fun restoreItem(historyId: String): RestoreResult {
-        val entry = pickHistoryDao.getById(historyId) ?: return RestoreResult.Success
+    suspend fun restoreItem(historyId: String): RestoreResult = database.withTransaction {
+        val entry = pickHistoryDao.getById(historyId) ?: return@withTransaction RestoreResult.Success
 
         // Check for collision: an active item with the same text already exists
         val activeCollision = itemDao.countActiveByText(entry.listId, entry.itemTextSnapshot, "") > 0
         if (activeCollision) {
             pickHistoryDao.deleteById(historyId)
-            return RestoreResult.AlreadyActive
+            return@withTransaction RestoreResult.AlreadyActive
         }
 
         if (entry.itemId != null) {
@@ -182,7 +194,7 @@ class RoletaRepository @Inject constructor(
             )
             pickHistoryDao.updateItemId(historyId, newId)
         }
-        return RestoreResult.Success
+        RestoreResult.Success
     }
 
     // ── Import / Export ───────────────────────────────────────────────────────
@@ -221,6 +233,44 @@ class RoletaRepository @Inject constructor(
             }
         }
         return null
+    }
+
+    /**
+     * Creates a list from pasted text, or adds to the list with the same name (case-insensitive).
+     * Items that can't be added are skipped and reported in the result instead of failing the import.
+     */
+    suspend fun bulkImport(parsed: ParsedBulkImport): BulkImportResult = database.withTransaction {
+        val existing = listDao.getByName(parsed.title)
+        val listId = existing?.id ?: UUID.randomUUID().toString().also { id ->
+            listDao.insert(ListEntity(id = id, name = parsed.title, createdAt = now()))
+        }
+
+        val skipped = parsed.duplicates.map { SkippedItem(it, SkipReason.DUPLICATE_IN_TEXT) }.toMutableList()
+        var added = 0
+        val ts = now()
+        for (text in parsed.items) {
+            if (existing != null && itemDao.countActiveByText(listId, text, "") > 0) {
+                skipped += SkippedItem(text, SkipReason.ALREADY_IN_LIST)
+            } else {
+                itemDao.insert(
+                    ItemEntity(
+                        id = UUID.randomUUID().toString(),
+                        listId = listId,
+                        text = text,
+                        createdAt = ts + added
+                    )
+                )
+                added++
+            }
+        }
+
+        BulkImportResult(
+            listId = listId,
+            listName = existing?.name ?: parsed.title,
+            createdList = existing == null,
+            addedCount = added,
+            skipped = skipped
+        )
     }
 
     // ── First-launch seeding ──────────────────────────────────────────────────
