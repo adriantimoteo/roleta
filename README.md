@@ -67,17 +67,13 @@ app/src/main/java/com/roleta/app/
 
 ## Screenshots
 
-> These predate the UI refresh (brand palette, grouped lists, redesigned result screen) and are due to be retaken.
-
-| Home | List | Pick result |
+| Home | Add a list | Import from text |
 |---|---|---|
-| ![Home screen](docs/screenshots/home.png) | ![List screen](docs/screenshots/list.png) | ![Pick result](docs/screenshots/pick-result.png) |
+| ![Home screen](docs/screenshots/home.png) | ![Add a list sheet](docs/screenshots/add-list-sheet.png) | ![Import from text dialog](docs/screenshots/import-text.png) |
 
-| History |
-|---|
-| ![History screen](docs/screenshots/history.png) |
-
-[▶ Watch the spin animation](docs/screenshots/spin.mp4)
+| Spinning | Pick result |
+|---|---|
+| ![Slot machine spinning](docs/screenshots/spinning.png) | ![Pick result](docs/screenshots/pick-result.png) |
 
 ## Testing
 
